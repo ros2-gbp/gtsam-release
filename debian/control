@@ -1,0 +1,12 @@
+Source: ros-humble-gtsam
+Section: misc
+Priority: optional
+Maintainer: Frank Dellaert <gtsam@lists.gatech.edu>
+Build-Depends: debhelper (>= 9.0.0), cmake, libboost-all-dev, libeigen3-dev, libtbb-dev, ros-humble-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-humble-gtsam
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-humble-ros-workspace
+Description: gtsam
