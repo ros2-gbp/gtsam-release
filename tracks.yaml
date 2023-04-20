@@ -73,7 +73,7 @@ tracks:
     last_version: 4.2.0
     name: upstream
     patches: null
-    release_inc: '3'
+    release_inc: '4'
     release_repo_url: null
     release_tag: 4.2a9
     release_tag_saved: :{ask}
