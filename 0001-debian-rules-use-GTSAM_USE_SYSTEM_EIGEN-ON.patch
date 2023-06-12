@@ -1,0 +1,25 @@
+From a04ba8a867265ca98c2c28daf74e2c30b5a4a409 Mon Sep 17 00:00:00 2001
+From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
+Date: Thu, 8 Jun 2023 00:19:04 +0200
+Subject: [PATCH] debian/rules: use GTSAM_USE_SYSTEM_EIGEN=ON
+
+Signed-off-by: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
+---
+ debian/rules.em | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/debian/rules.em b/debian/rules.em
+index 284a071..a7c2535 100755
+--- a/debian/rules.em
++++ b/debian/rules.em
+@@ -37,6 +37,7 @@ override_dh_auto_configure:
+ 	dh_auto_configure -- \
+ 		-DCMAKE_INSTALL_PREFIX="@(InstallationPrefix)" \
+ 		-DCMAKE_PREFIX_PATH="@(InstallationPrefix)" \
++		-DGTSAM_USE_SYSTEM_EIGEN=ON \
+ 		$(BUILD_TESTING_ARG)
+ 
+ override_dh_auto_build:
+-- 
+2.34.1
+
