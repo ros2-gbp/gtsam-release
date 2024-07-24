@@ -1,3 +1,26 @@
+## gtsam (jazzy) - 4.2.0-3
+
+The packages in the `gtsam` repository were released into the `jazzy` distro by running `/usr/bin/bloom-release -y -r jazzy gtsam` on `Wed, 24 Jul 2024 11:25:39 -0000`
+
+The `gtsam` package was released.
+
+Version of package(s) in repository `gtsam`:
+
+- upstream repository: https://github.com/borglab/gtsam.git
+- release repository: https://github.com/ros2-gbp/gtsam-release.git
+- rosdistro version: `4.2.0-2`
+- old version: `4.2.0-2`
+- new version: `4.2.0-3`
+
+Versions of tools used:
+
+- bloom version: `0.12.0`
+- catkin_pkg version: `1.0.0`
+- rosdep version: `0.24.0`
+- rosdistro version: `0.9.1`
+- vcstools version: `0.1.42`
+
+
 ## gtsam (jazzy) - 4.2.0-2
 
 The packages in the `gtsam` repository were released into the `jazzy` distro by running `/usr/bin/bloom-release -r jazzy gtsam` on `Wed, 05 Jun 2024 09:25:29 -0000`
