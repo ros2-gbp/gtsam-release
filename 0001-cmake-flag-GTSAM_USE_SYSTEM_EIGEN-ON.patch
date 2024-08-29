@@ -1,0 +1,24 @@
+From 6a0fd488042162e7b445732c1b833ea388d4142a Mon Sep 17 00:00:00 2001
+From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
+Date: Wed, 24 Jul 2024 13:15:17 +0200
+Subject: [PATCH] cmake flag: GTSAM_USE_SYSTEM_EIGEN=ON
+
+---
+ rpm/template.spec.em | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/rpm/template.spec.em b/rpm/template.spec.em
+index b1217d0..8fd20c8 100644
+--- a/rpm/template.spec.em
++++ b/rpm/template.spec.em
+@@ -48,6 +48,7 @@ mkdir -p .obj-%{_target_platform} && cd .obj-%{_target_platform}
+     -DCMAKE_INSTALL_PREFIX="@(InstallationPrefix)" \
+     -DCMAKE_PREFIX_PATH="@(InstallationPrefix)" \
+     -DSETUPTOOLS_DEB_LAYOUT=OFF \
++    -DGTSAM_USE_SYSTEM_EIGEN=ON \
+ %if !0%{?with_tests}
+     -DBUILD_TESTING=OFF \
+ %endif
+-- 
+2.34.1
+
