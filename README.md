@@ -1,3 +1,26 @@
+## gtsam (rolling) - 4.3.0-1
+
+The packages in the `gtsam` repository were released into the `rolling` distro by running `/home/jlblanco/code/bloom-venv/bin/bloom-release -r rolling gtsam` on `Thu, 19 Jun 2025 22:05:43 -0000`
+
+The `gtsam` package was released.
+
+Version of package(s) in repository `gtsam`:
+
+- upstream repository: https://github.com/borglab/gtsam.git
+- release repository: https://github.com/ros2-gbp/gtsam-release.git
+- rosdistro version: `4.2.0-6`
+- old version: `4.2.0-6`
+- new version: `4.3.0-1`
+
+Versions of tools used:
+
+- bloom version: `0.11.2`
+- catkin_pkg version: `0.5.2`
+- rosdep version: `0.22.2`
+- rosdistro version: `0.9.0`
+- vcstools version: `0.1.42`
+
+
 ## gtsam (rolling) - 4.2.0-6
 
 The packages in the `gtsam` repository were released into the `rolling` distro by running `/home/jlblanco/code/bloom-venv/bin/bloom-release -y -r rolling gtsam` on `Thu, 29 Aug 2024 08:35:25 -0000`
