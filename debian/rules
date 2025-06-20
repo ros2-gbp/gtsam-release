@@ -38,6 +38,8 @@ override_dh_auto_configure:
 		-DCMAKE_INSTALL_PREFIX="/opt/ros/rolling" \
 		-DCMAKE_PREFIX_PATH="/opt/ros/rolling" \
 		-DGTSAM_USE_SYSTEM_EIGEN=ON \
+		-DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF \
+		-DGTSAM_USE_BOOST_FEATURES=OFF \
 		$(BUILD_TESTING_ARG)
 
 override_dh_auto_build:
