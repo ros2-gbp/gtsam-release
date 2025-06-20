@@ -1,0 +1,25 @@
+From abcb0ed7c30532b1f15bd516a9efb05562f3b30e Mon Sep 17 00:00:00 2001
+From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
+Date: Sat, 21 Jun 2025 00:20:08 +0200
+Subject: [PATCH 2/2] Debian rules.em: disable Boost features
+
+---
+ debian/rules.em | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/debian/rules.em b/debian/rules.em
+index a7c2535..c865990 100755
+--- a/debian/rules.em
++++ b/debian/rules.em
+@@ -38,6 +38,8 @@ override_dh_auto_configure:
+ 		-DCMAKE_INSTALL_PREFIX="@(InstallationPrefix)" \
+ 		-DCMAKE_PREFIX_PATH="@(InstallationPrefix)" \
+ 		-DGTSAM_USE_SYSTEM_EIGEN=ON \
++		-DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF \
++		-DGTSAM_USE_BOOST_FEATURES=OFF \
+ 		$(BUILD_TESTING_ARG)
+ 
+ override_dh_auto_build:
+-- 
+2.34.1
+
