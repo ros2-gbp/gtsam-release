@@ -1,4 +1,4 @@
-From abcb0ed7c30532b1f15bd516a9efb05562f3b30e Mon Sep 17 00:00:00 2001
+From 84aa18ff444208404104c02455164485fe6dd3ab Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Sat, 21 Jun 2025 00:20:08 +0200
 Subject: [PATCH 2/2] Debian rules.em: disable Boost features
