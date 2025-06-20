@@ -38,6 +38,8 @@ override_dh_auto_configure:
 		-DCMAKE_INSTALL_PREFIX="@(InstallationPrefix)" \
 		-DCMAKE_PREFIX_PATH="@(InstallationPrefix)" \
 		-DGTSAM_USE_SYSTEM_EIGEN=ON \
+		-DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF \
+		-DGTSAM_USE_BOOST_FEATURES=OFF \
 		$(BUILD_TESTING_ARG)
 
 override_dh_auto_build:
