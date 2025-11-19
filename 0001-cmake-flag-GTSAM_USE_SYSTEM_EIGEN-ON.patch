@@ -1,4 +1,4 @@
-From 13d40dda430191af680b54bc7fad1c24ead63727 Mon Sep 17 00:00:00 2001
+From ee24971d62339237df8a392caa1fb0f1589c72b6 Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Wed, 24 Jul 2024 13:15:17 +0200
 Subject: [PATCH] cmake flag: GTSAM_USE_SYSTEM_EIGEN=ON
