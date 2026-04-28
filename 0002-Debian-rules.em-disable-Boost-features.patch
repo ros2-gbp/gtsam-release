@@ -1,4 +1,4 @@
-From bcf4efda278fb233441479d0f6f477361aeb2a0e Mon Sep 17 00:00:00 2001
+From f9c461a0debf852020b734c6b332fb2dc16bdc57 Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Sat, 21 Jun 2025 00:19:50 +0200
 Subject: [PATCH 2/2] Debian rules.em: disable Boost features
@@ -8,7 +8,7 @@ Subject: [PATCH 2/2] Debian rules.em: disable Boost features
  1 file changed, 2 insertions(+)
 
 diff --git a/debian/rules.em b/debian/rules.em
-index a7c2535..c865990 100755
+index a7c25352c52f..c865990d5c45 100755
 --- a/debian/rules.em
 +++ b/debian/rules.em
 @@ -38,6 +38,8 @@ override_dh_auto_configure:
@@ -21,5 +21,5 @@ index a7c2535..c865990 100755
  
  override_dh_auto_build:
 -- 
-2.34.1
+2.53.0
 
