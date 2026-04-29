@@ -1,4 +1,4 @@
-From 4315b26365e64e65bbcadc44a88431b4d0bb4229 Mon Sep 17 00:00:00 2001
+From cd6d4f0810755d746dd09da2c0c5554b4913305e Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Thu, 8 Jun 2023 00:19:04 +0200
 Subject: [PATCH 1/2] debian/rules: use GTSAM_USE_SYSTEM_EIGEN=ON
