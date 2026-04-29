@@ -1,4 +1,4 @@
-From c14956a96e2cc0a3ff71916314bf8639fc03546a Mon Sep 17 00:00:00 2001
+From 4315b26365e64e65bbcadc44a88431b4d0bb4229 Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Thu, 8 Jun 2023 00:19:04 +0200
 Subject: [PATCH 1/2] debian/rules: use GTSAM_USE_SYSTEM_EIGEN=ON
@@ -9,7 +9,7 @@ Signed-off-by: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
  1 file changed, 1 insertion(+)
 
 diff --git a/debian/rules.em b/debian/rules.em
-index 284a07142d7a..a7c25352c52f 100755
+index 284a071..a7c2535 100755
 --- a/debian/rules.em
 +++ b/debian/rules.em
 @@ -37,6 +37,7 @@ override_dh_auto_configure:
@@ -21,5 +21,5 @@ index 284a07142d7a..a7c25352c52f 100755
  
  override_dh_auto_build:
 -- 
-2.53.0
+2.54.0.545.g6539524ca2-goog
 
