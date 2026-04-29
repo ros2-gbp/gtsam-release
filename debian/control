@@ -1,0 +1,12 @@
+Source: ros-lyrical-gtsam
+Section: misc
+Priority: optional
+Maintainer: Frank Dellaert <gtsam@lists.gatech.edu>
+Build-Depends: debhelper (>= 9.0.0), cmake, libeigen3-dev, libtbb-dev, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/gtsam/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-gtsam
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libeigen3-dev, libtbb-dev, ros-lyrical-ros-workspace
+Description: gtsam
