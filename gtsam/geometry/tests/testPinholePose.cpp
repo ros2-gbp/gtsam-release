@@ -16,14 +16,14 @@
  * @date   Feb 20, 2015
  */
 
-#include <gtsam/geometry/PinholePose.h>
-#include <gtsam/geometry/Cal3_S2.h>
-#include <gtsam/geometry/Pose2.h>
-#include <gtsam/geometry/Cal3Bundler.h>
+#include <CppUnitLite/TestHarness.h>
+#include <gtsam/base/MatrixConstants.h>
 #include <gtsam/base/Testable.h>
 #include <gtsam/base/numericalDerivative.h>
-
-#include <CppUnitLite/TestHarness.h>
+#include <gtsam/geometry/Cal3Bundler.h>
+#include <gtsam/geometry/Cal3_S2.h>
+#include <gtsam/geometry/PinholePose.h>
+#include <gtsam/geometry/Pose2.h>
 
 #include <cmath>
 #include <iostream>
@@ -58,15 +58,14 @@ TEST( PinholePose, constructor)
 }
 
 //******************************************************************************
-/* Already in testPinholeCamera??? 
+/* Already in testPinholeCamera???
 TEST(PinholeCamera, Pose) {
 
   Matrix actualH;
   EXPECT(assert_equal(pose, camera.getPose(actualH)));
 
   // Check derivative
-  std::function<Pose3(Camera)> f = //
-      std::bind(&Camera::getPose,_1,{});
+  auto f = std::bind(&Camera::getPose,_1,{});
   Matrix numericalH = numericalDerivative11<Pose3,Camera>(f,camera);
   EXPECT(assert_equal(numericalH, actualH, 1e-9));
 }
@@ -88,7 +87,7 @@ TEST( PinholePose, lookat)
   Camera camera2 = Camera::Lookat(C2, Point3(0,0,0), Point3(0,0,1));
 
   Matrix R = camera2.pose().rotation().matrix();
-  Matrix I = trans(R)*R;
+  Matrix I = R.transpose() * R;
   EXPECT(assert_equal(I, I_3x3));
 }
 
