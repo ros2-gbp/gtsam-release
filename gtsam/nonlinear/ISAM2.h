@@ -96,6 +96,9 @@ class GTSAM_EXPORT ISAM2 : public BayesTree<ISAM2Clique> {
   int update_count_;  ///< Counter incremented every update(), used to determine
                       ///< periodic relinearization
 
+  size_t nnzAfterLastReorder_;  ///< Bayes tree nnz recorded after the most
+                                ///< recent full batch reorder
+
  public:
   using This = ISAM2;                       ///< This class
   using Base = BayesTree<ISAM2Clique>;      ///< The BayesTree base class
@@ -213,6 +216,12 @@ class GTSAM_EXPORT ISAM2 : public BayesTree<ISAM2Clique> {
           marginalizeLeaves(leafKeys, (&optArgs)...);
       }
 
+  /** An added function specifically to return the marginalFactorIndices
+   * and deletedFactorIndices. Made for the python wrapping
+   * of marginalizeLeaves
+   */
+  std::pair<FactorIndices, FactorIndices> marginalizeLeavesWithIndices(const FastList<Key>& leafKeys);
+
   /// Access the current linearization point
   const Values& getLinearizationPoint() const { return theta_; }
 
@@ -238,18 +247,44 @@ class GTSAM_EXPORT ISAM2 : public BayesTree<ISAM2Clique> {
     return traits<VALUE>::Retract(theta_.at<VALUE>(key), delta);
   }
 
+#ifdef GTSAM_ALLOW_DEPRECATED_SINCE_V43
   /** Compute an estimate for a single variable using its incomplete linear
-   * delta computed during the last update.  This is faster than calling the
-   * no-argument version of calculateEstimate, which operates on all variables.
-   * This is a non-templated version that returns a Value base class for use
-   * with the MATLAB wrapper.
+   * delta computed during the last update.
+   *
+   * @deprecated: use calculateEstimate<VALUE>(key) when the type is known, or
+   * calculateEstimate(KeyVector{key}) for a type-erased result. This overload
+   * returns a reference to a Value allocated by Value::retract_(), which no
+   * one owns, so every call leaks. It cannot be repaired in place: Value is
+   * abstract, so the estimate cannot be returned by value. It was introduced
+   * as a non-templated form "for use with the MATLAB wrapper", but the MATLAB
+   * and Python wrappers are generated from the interface files, which declare
+   * only the templated overload, so neither ever reached it.
    * @param key
    * @return
    */
   const Value& calculateEstimate(Key key) const;
+#endif
 
-  /** Return marginal on any variable as a covariance matrix */
+  /** Compute estimates for a set of variables from the incomplete linear
+   * delta computed during the last update, as a Values holding only those
+   * keys, whatever their types. Costs one retract per requested key, unlike
+   * the no-argument calculateEstimate(), which retracts every variable.
+   * @param keys The keys to estimate; must be unique.
+   * @throws ValuesKeyDoesNotExist if a key is not in the linearization point.
+   */
+  Values calculateEstimate(const KeyVector& keys) const;
+
+  /// Return the marginal information matrix on any variable.
+  Matrix marginalInformation(Key key) const;
+
+  /// Return the marginal covariance matrix on any variable.
   Matrix marginalCovariance(Key key) const;
+
+  /// Return joint marginal covariance with blocks in `queryKeys` order.
+  JointMarginal jointMarginalCovariance(const KeyVector& queryKeys) const;
+
+  /// Return joint marginal information with blocks in `queryKeys` order.
+  JointMarginal jointMarginalInformation(const KeyVector& queryKeys) const;
 
   /// @name Public members for non-typical usage
   /// @{
@@ -278,6 +313,11 @@ class GTSAM_EXPORT ISAM2 : public BayesTree<ISAM2Clique> {
 
   const ISAM2Params& params() const { return params_; }
 
+  /** Compute the total number of nonzeros by traversing the entire Bayes tree.
+   * Available regardless of whether update() computes ISAM2Result::treeNnz.
+   */
+  size_t treeNnz() const;
+
   /** prints out clique statistics */
   void printStats() const { getCliqueData().getStats().print(); }
 
@@ -286,9 +326,25 @@ class GTSAM_EXPORT ISAM2 : public BayesTree<ISAM2Clique> {
    * about zero is \f$ -R^T d \f$.  See also gradient(const GaussianBayesNet&,
    * const VectorValues&).
    *
+   * Components associated with hard constraints are undefined and are
+   * represented as zero in the returned gradient.
+   *
    * @return A VectorValues storing the gradient.
    */
   VectorValues gradientAtZero() const;
+
+  /** @brief Predicts the updated variables for a hypothetical update.
+   * @param newFactors The factors for the hypothetical update
+   * @param newTheta The estimates for new variables in the hypothetical update
+   * @param updateParams The update params for the hypothetical update
+   * @returns The set of all affected keys, and a flag indicating if this would
+   * be a batch update
+   *
+   * NOTE: Update may mutate the mutable field delta_
+   */
+  std::pair<KeySet, bool> predictUpdateInfo(
+      const NonlinearFactorGraph& newFactors, const Values& newTheta,
+      const ISAM2UpdateParams& updateParams) const;
 
   /// @}
 
@@ -336,6 +392,8 @@ class GTSAM_EXPORT ISAM2 : public BayesTree<ISAM2Clique> {
    * Remove variables from the ISAM2 system.
    */
   void removeVariables(const KeySet& unusedKeys);
+
+  friend class IncrementalFixedLagSmoother;
 
   void updateDelta(bool forceFullSolve = false) const;
 
