@@ -51,6 +51,12 @@ public:
     size_t nonlinearVariables; ///< The number of variables that can be relinearized
     size_t linearVariables; ///< The number of variables that must keep a constant linearization point
     double error; ///< The final factor graph error
+    FactorIndices marginalFactorIndices; ///< Indices added during the marginalizeLeaves step
+    FactorIndices deletedFactorIndices; ///< Indices removed during the marginalizeLeaves step
+    KeySet keysOfDeletedNodes; ///< Keys of nodes removed during the marginalizeLeaves step
+    KeySet expiredPendingKeys;  ///< Keys of values that left the lag window
+                                ///< before any factor referenced them, and were
+                                ///< removed without marginalization
     Result() : iterations(0), intermediateSteps(0), nonlinearVariables(0), linearVariables(0), error(0) {}
 
     /// Getter methods
@@ -59,7 +65,11 @@ public:
     size_t getNonlinearVariables() const { return nonlinearVariables; }
     size_t getLinearVariables() const { return linearVariables; }
     double getError() const { return error; }
-    void print() const;
+    FactorIndices getMarginalFactorIndices() const { return marginalFactorIndices; }
+    FactorIndices getDeletedFactorIndices() const { return deletedFactorIndices; }
+    KeySet getKeysOfDeletedNodes() const { return keysOfDeletedNodes; }
+    KeySet getExpiredPendingKeys() const { return expiredPendingKeys; }
+    GTSAM_EXPORT void print() const;
   };
 
   /** default constructor */
@@ -86,6 +96,11 @@ public:
     return smootherLag_;
   }
 
+  /** Write to the current smoother lag. Made for python bindings. */
+  void setSmootherLag(double smootherLag) {
+    smootherLag_ = smootherLag;
+  }
+
   /** Access the current set of timestamps associated with each variable */
   const KeyTimestampMap& timestamps() const {
     return keyTimestampMap_;
@@ -102,6 +117,16 @@ public:
    * a single variable is needed, it is faster to call calculateEstimate(const KEY&).
    */
   virtual Values calculateEstimate() const  = 0;
+
+  /** Compute estimates for a set of variables only, as a Values holding those
+   * keys, whatever their types. The default retracts the whole window and
+   * extracts; subclasses override it with a per-key path.
+   * @param keys The keys to estimate; must be unique.
+   * @throws ValuesKeyDoesNotExist if a key is not in the smoother.
+   */
+  virtual Values calculateEstimate(const KeyVector& keys) const {
+    return calculateEstimate().extract(keys);
+  }
 
 
 protected:
