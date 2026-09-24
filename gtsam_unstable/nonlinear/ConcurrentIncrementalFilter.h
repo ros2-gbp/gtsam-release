@@ -127,6 +127,21 @@ public:
       const std::optional< FactorIndices >& removeFactorIndices = {});
 
   /**
+   * Add new factors and variables to the filter using additional iSAM2 update parameters.
+   *
+   * This overload preserves the filter-specific key-moving behavior while exposing
+   * parameters such as ISAM2UpdateParams::newAffectedKeys for smart factors.
+   *
+   * @param newFactors The new factors to be added to the filter
+   * @param newTheta Initialization points for new variables to be added to the filter
+   * @param updateParams Additional parameters to control the iSAM2 update
+   * @param keysToMove An optional set of keys to move from the filter to the smoother
+   */
+  Result update(const NonlinearFactorGraph& newFactors,
+      const Values& newTheta, const ISAM2UpdateParams& updateParams,
+      const std::optional<FastList<Key> >& keysToMove = {});
+
+  /**
    * Perform any required operations before the synchronization process starts.
    * Called by 'synchronize'
    */
@@ -180,7 +195,7 @@ protected:
 private:
 
   /** Traverse the iSAM2 Bayes Tree, inserting all descendants of the provided index/key into 'additionalKeys' */
-  static void RecursiveMarkAffectedKeys(const Key& key, const ISAM2Clique::shared_ptr& clique, std::set<Key>& additionalKeys);
+  static void RecursiveMarkAffectedKeys(const Key& key, const ISAM2Clique::shared_ptr& clique, KeySet& additionalKeys);
 
   /** Find the set of iSAM2 factors adjacent to 'keys' */
   static FactorIndices FindAdjacentFactors(const ISAM2& isam2, const FastList<Key>& keys, const FactorIndices& factorsToIgnore);
