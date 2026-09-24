@@ -18,8 +18,10 @@
 
 #pragma once
 
-#include <gtsam/base/Testable.h>
+#include <gtsam/base/Manifold.h>
 #include <gtsam/base/Matrix.h>
+#include <gtsam/base/MatrixConstants.h>
+#include <gtsam/base/Testable.h>
 #include <gtsam/base/std_optional_serialization.h>
 #include <gtsam/dllexport.h>
 #include <gtsam/linear/LossFunctions.h>
@@ -32,6 +34,7 @@
 #endif
 
 #include <optional>
+#include <type_traits>
 
 namespace gtsam {
 
@@ -102,9 +105,19 @@ namespace gtsam {
         return std::sqrt(squaredMahalanobisDistance(v));
       }
 
-      /// loss function, input is Mahalanobis distance
+      /// Loss function, input is squared Mahalanobis distance.
       virtual double loss(const double squared_distance) const {
         return 0.5 * squared_distance;
+      }
+
+      /**
+       * Evaluate the loss of an unwhitened residual v. Unlike the
+       * squared-distance overload, this retains the individual components
+       * and their signs for scalar robust losses.
+       * The default delegates to the squared-distance loss.
+       */
+      virtual double loss(const Vector& v) const {
+        return loss(squaredMahalanobisDistance(v));
       }
 
       virtual void WhitenSystem(std::vector<Matrix>& A, Vector& b) const = 0;
@@ -152,6 +165,17 @@ namespace gtsam {
     };
 
     //---------------------------------------------------------------------------------------
+    /// Return true if the model dimension matches the manifold dimension.
+    template <class T>
+    inline bool matchesDimension(const Base& model, const T& measured) {
+      static_assert(IsManifold<T>::value,
+                    "noiseModel::matchesDimension requires a manifold type.");
+      if constexpr (traits<T>::dimension == Eigen::Dynamic) {
+        return model.dim() == traits<T>::GetDimension(measured);
+      } else {
+        return model.dim() == static_cast<size_t>(traits<T>::dimension);
+      }
+    }
 
     /**
      * Gaussian implements the mathematical model
@@ -223,6 +247,8 @@ namespace gtsam {
       Vector sigmas() const override;
       Vector whiten(const Vector& v) const override;
       Vector unwhiten(const Vector& v) const override;
+      void unwhitenInPlace(Vector& v) const override;
+      void unwhitenInPlace(Eigen::Block<Vector>& v) const override;
 
       /**
        * Multiply a derivative with R (derivative of whiten)
@@ -344,11 +370,17 @@ namespace gtsam {
 
       void print(const std::string& name) const override;
       Vector sigmas() const override { return sigmas_; }
+      /// Return standard deviations without copying.
+      inline const Vector& sigmasRef() const { return sigmas_; }
       Vector whiten(const Vector& v) const override;
       Vector unwhiten(const Vector& v) const override;
+      void whitenInPlace(Vector& v) const override;
+      void unwhitenInPlace(Vector& v) const override;
       Matrix Whiten(const Matrix& H) const override;
       void WhitenInPlace(Matrix& H) const override;
       void WhitenInPlace(Eigen::Block<Matrix> H) const override;
+      void whitenInPlace(Eigen::Block<Vector>& v) const override;
+      void unwhitenInPlace(Eigen::Block<Vector>& v) const override;
 
       /**
        * Return standard deviations (sqrt of diagonal)
@@ -408,8 +440,8 @@ namespace gtsam {
       Vector mu_; ///< Penalty function weight - needs to be large enough to dominate soft constraints
 
       /**
-       * Constructor that prevents any inf values
-       * from appearing in invsigmas or precisions.
+       * Constructor that prevents inf values from appearing in invsigmas,
+       * while preserving infinite precisions for constrained entries.
        * Allows for specifying mu.
        */
       Constrained(const Vector& mu, const Vector& sigmas);
@@ -439,25 +471,25 @@ namespace gtsam {
 
       /**
        * A diagonal noise model created by specifying a Vector of
-       * standard devations, some of which might be zero
+       * standard deviations, some of which might be zero
        */
       static shared_ptr MixedSigmas(const Vector& mu, const Vector& sigmas);
 
       /**
        * A diagonal noise model created by specifying a Vector of
-       * standard devations, some of which might be zero
+       * standard deviations, some of which might be zero
        */
       static shared_ptr MixedSigmas(const Vector& sigmas);
 
       /**
        * A diagonal noise model created by specifying a Vector of
-       * standard devations, some of which might be zero
+       * standard deviations, some of which might be zero
        */
       static shared_ptr MixedSigmas(double m, const Vector& sigmas);
 
       /**
        * A diagonal noise model created by specifying a Vector of
-       * standard devations, some of which might be zero
+       * standard deviations, some of which might be zero
        */
       static shared_ptr MixedVariances(const Vector& mu, const Vector& variances);
       static shared_ptr MixedVariances(const Vector& variances);
@@ -470,7 +502,7 @@ namespace gtsam {
       static shared_ptr MixedPrecisions(const Vector& precisions);
 
       /**
-       * The squaredMahalanobisDistance function for a constrained noisemodel,
+       * The squaredMahalanobisDistance function for a constrained noise model,
        * for non-constrained versions, uses sigmas, otherwise
        * uses the penalty function with mu
        */
@@ -495,12 +527,20 @@ namespace gtsam {
 
       /// Calculates error vector with weights applied
       Vector whiten(const Vector& v) const override;
+      void whitenInPlace(Vector& v) const override;
+      void whitenInPlace(Eigen::Block<Vector>& v) const override;
 
       /// Whitening functions will perform partial whitening on rows
       /// with a non-zero sigma.  Other rows remain untouched.
       Matrix Whiten(const Matrix& H) const override;
       void WhitenInPlace(Matrix& H) const override;
       void WhitenInPlace(Eigen::Block<Matrix> H) const override;
+
+      /**
+       * Compute A' * diag(precisions) * A using constrained precisions.
+       * Infinite precisions yield infinite entries where the row has support.
+       */
+      Matrix informationFromA(const Matrix& A) const;
 
       /**
        * Apply QR factorization to the system [A b], taking into account constraints
@@ -514,7 +554,7 @@ namespace gtsam {
       Diagonal::shared_ptr QR(Matrix& Ab) const override;
 
       /**
-       * Returns a Unit version of a constrained noisemodel in which
+       * Returns a Unit version of a constrained noise model in which
        * constrained sigmas remain constrained and the rest are unit scaled
        */
       shared_ptr unit() const;
@@ -559,7 +599,7 @@ namespace gtsam {
       typedef std::shared_ptr<Isotropic> shared_ptr;
 
       /**
-       * An isotropic noise model created by specifying a standard devation sigma
+       * An isotropic noise model created by specifying a standard deviation sigma
        */
       static shared_ptr Sigma(size_t dim, double sigma, bool smart = true);
 
@@ -586,6 +626,8 @@ namespace gtsam {
       void WhitenInPlace(Matrix& H) const override;
       void whitenInPlace(Vector& v) const override;
       void WhitenInPlace(Eigen::Block<Matrix> H) const override;
+      void unwhitenInPlace(Vector& v) const override;
+      void unwhitenInPlace(Eigen::Block<Vector>& v) const override;
 
       /**
        * Return standard deviation
@@ -632,6 +674,23 @@ namespace gtsam {
         return shared_ptr(new Unit(dim));
       }
 
+      /**
+       * Create a unit covariance noise model for a measurement type.
+       * Reuse a cached instance for fixed-size types.
+       */
+      template <class T, std::enable_if_t<!std::is_integral_v<T>, int> = 0>
+      static shared_ptr Create(const T& measured) {
+        static_assert(IsManifold<T>::value,
+                      "noiseModel::Unit::Create requires a manifold type.");
+        if constexpr (traits<T>::dimension == Eigen::Dynamic) {
+          return Create(traits<T>::GetDimension(measured));
+        } else {
+          static const shared_ptr kDefault =
+              Create(static_cast<size_t>(traits<T>::dimension));
+          return kDefault;
+        }
+      }
+
       /// true if a unit noise model, saves slow/clumsy dynamic casting
       bool isUnit() const override { return true; }
 
@@ -669,8 +728,11 @@ namespace gtsam {
      *  Taking as an example noise = Isotropic::Create(d, sigma),  we first divide the residuals
      *  uw = |Ax-b| by sigma by "whitening" the system (A,b), obtaining r = |Ax-b|/sigma, and
      *  then we pass the now whitened residual 'r' through the robust M-estimator.
-     *  This is currently done by multiplying with sqrt(w), because the residuals will be squared
-     *  again in error, yielding 0.5 \sum w(r)*r^2.
+     *  Linearization multiplies by sqrt(w), with weights evaluated at the
+     *  linear-system right-hand side. The resulting Gaussian factor evaluates
+     *  a quadratic approximation, 0.5 \sum w(r)*r^2, with those weights held
+     *  fixed. Nonlinear factor error() instead evaluates the robust objective
+     *  via loss(v); it is generally not the squared norm of whiten(v).
      *
      *  In other words, while sigma is expressed in the native residual units, a parameter like
      *  k in the Huber norm is expressed in whitened units, i.e., "nr of sigmas".
@@ -714,12 +776,24 @@ namespace gtsam {
       { Vector b; Matrix B=A; this->WhitenSystem(B,b); return B; }
       inline Vector unwhiten(const Vector& /*v*/) const override
       { throw std::invalid_argument("unwhiten is not currently supported for robust noise models."); }
-      /// Compute loss from the m-estimator using the Mahalanobis distance.
+      inline void whitenInPlace(Vector& v) const override { this->WhitenSystem(v); }
+      /**
+       * Compute the block loss from a squared Mahalanobis distance. Use the
+       * vector overload to respect Scalar reweighting and residual signs.
+       */
       double loss(const double squared_distance) const override {
         return robust_->loss(std::sqrt(squared_distance));
       }
 
-      // NOTE: This is special because in whiten the base version will do the reweighting
+      /**
+       * Evaluate the loss of an unwhitened residual v. Scalar mode sums
+       * m-estimator losses at the negated whitened components, matching the
+       * existing reweighting of the linear-system right-hand side -v.
+       * Block mode evaluates the loss of the Mahalanobis distance.
+       */
+      double loss(const Vector& v) const override;
+
+      // NOTE: This is special because in whiten the base version will do the re-weighting
       // which is incorrect!
       double squaredMahalanobisDistance(const Vector& v) const override {
         return noise_->squaredMahalanobisDistance(v);
@@ -754,6 +828,16 @@ namespace gtsam {
     // Helper function
     GTSAM_EXPORT std::optional<Vector> checkIfDiagonal(const Matrix& M);
 
+    /// Create
+    template <class T>
+    Base::shared_ptr validOrDefault(const T& value,
+                                    const Base::shared_ptr& model) {
+      if (!model) return noiseModel::Unit::Create(value);
+      if (noiseModel::matchesDimension(*model, value)) return model;
+      throw std::runtime_error(
+          "noiseModel::validOrDefault: mis-matched model dimension.");
+    }
+
   } // namespace noiseModel
 
   /** 
@@ -773,5 +857,3 @@ namespace gtsam {
   template<> struct traits<noiseModel::Unit> : public Testable<noiseModel::Unit> {};
 
 } //\ namespace gtsam
-
-
