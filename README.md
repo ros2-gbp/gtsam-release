@@ -1,3 +1,26 @@
+## gtsam (kilted) - 4.3.1-1
+
+The packages in the `gtsam` repository were released into the `kilted` distro by running `/usr/bin/bloom-release --rosdistro kilted --track kilted gtsam` on `Thu, 24 Sep 2026 11:26:44 -0000`
+
+The `gtsam` package was released.
+
+Version of package(s) in repository `gtsam`:
+
+- upstream repository: https://github.com/borglab/gtsam.git
+- release repository: https://github.com/ros2-gbp/gtsam-release.git
+- rosdistro version: `4.3.0-2`
+- old version: `4.3.0-3`
+- new version: `4.3.1-1`
+
+Versions of tools used:
+
+- bloom version: `0.14.4`
+- catkin_pkg version: `1.1.1`
+- rosdep version: `0.27.0`
+- rosdistro version: `1.1.0`
+- vcstools version: `0.1.42`
+
+
 ## gtsam (lyrical) - 4.3.1-1
 
 The packages in the `gtsam` repository were released into the `lyrical` distro by running `/usr/bin/bloom-release --rosdistro lyrical --track lyrical gtsam` on `Thu, 24 Sep 2026 11:17:02 -0000`
