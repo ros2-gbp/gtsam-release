@@ -1,0 +1,25 @@
+From 6354f08eb0e44a4a09b13a5099cc230840632fdb Mon Sep 17 00:00:00 2001
+From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
+Date: Thu, 24 Sep 2026 18:27:22 +0200
+Subject: [PATCH 3/3] Debian rules.em: build without -Werror
+
+Signed-off-by: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
+---
+ debian/rules.em | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/debian/rules.em b/debian/rules.em
+index c865990..e901d8f 100755
+--- a/debian/rules.em
++++ b/debian/rules.em
+@@ -40,6 +40,7 @@ override_dh_auto_configure:
+ 		-DGTSAM_USE_SYSTEM_EIGEN=ON \
+ 		-DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF \
+ 		-DGTSAM_USE_BOOST_FEATURES=OFF \
++		-DGTSAM_BUILD_WITH_WERROR=OFF \
+ 		$(BUILD_TESTING_ARG)
+ 
+ override_dh_auto_build:
+-- 
+2.43.0
+
