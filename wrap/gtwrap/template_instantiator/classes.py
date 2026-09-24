@@ -2,7 +2,8 @@
 
 import gtwrap.interface_parser as parser
 from gtwrap.template_instantiator.constructor import InstantiatedConstructor
-from gtwrap.template_instantiator.helpers import (InstantiationHelper,
+from gtwrap.template_instantiator.helpers import (InstantiatedMember,
+                                                  InstantiationHelper,
                                                   instantiate_args_list,
                                                   instantiate_name,
                                                   instantiate_return_type,
@@ -16,13 +17,18 @@ class InstantiatedClass(parser.Class):
     Instantiate the class defined in the interface file.
     """
 
-    def __init__(self, original: parser.Class, instantiations=(), new_name=''):
+    def __init__(self,
+                 original: parser.Class,
+                 instantiations=(),
+                 new_name='',
+                 serializable=False):
         """
         Template <T, U>
         Instantiations: [T1, U1]
         """
         self.original = original
         self.instantiations = instantiations
+        self.serializable = serializable
 
         self.template = None
         self.is_virtual = original.is_virtual
@@ -57,7 +63,13 @@ class InstantiatedClass(parser.Class):
 
         # Instantiate all instance methods
         self.methods = self.instantiate_methods(typenames)
-        
+        if serializable and not any(
+                method.name in ('serialize', 'serializable')
+                for method in self.methods):
+            self.methods.append(
+                parser.Method.rule.parse_string(
+                    "void serialize() const;")[0])
+
         self.dunder_methods = original.dunder_methods
 
         super().__init__(
@@ -99,9 +111,11 @@ class InstantiatedClass(parser.Class):
         """
 
         if isinstance(self.original.parent_class, parser.type.TemplatedType):
-            return instantiate_type(
-                self.original.parent_class, typenames, self.instantiations,
-                parser.Typename(self.namespaces())).typename
+            namespaces = self.namespaces()
+            typename = parser.Typename(name=namespaces[-1],
+                                       namespaces=namespaces[:-1])
+            return instantiate_type(self.original.parent_class, typenames,
+                                    self.instantiations, typename).typename
         else:
             return self.original.parent_class
 
@@ -140,7 +154,7 @@ class InstantiatedClass(parser.Class):
 
         return instantiated_static_methods
 
-    def instantiate_methods(self, typenames):
+    def instantiate_methods(self, typenames) -> list[InstantiatedMember]:
         """
         Instantiate regular methods in the class.
 
@@ -225,9 +239,8 @@ class InstantiatedClass(parser.Class):
                 ", ".join([inst.to_cpp() for inst in self.instantiations]))
         else:
             name = self.original.name
-        namespaces_name = self.namespaces()
-        namespaces_name.append(name)
-        return parser.Typename(namespaces_name)
+
+        return parser.Typename(name=name, namespaces=self.namespaces())
 
     def to_cpp(self):
         """Generate the C++ code for wrapping."""

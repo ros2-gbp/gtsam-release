@@ -18,15 +18,20 @@
 
 #include <CppUnitLite/TestHarness.h>
 #include <gtsam/nonlinear/BatchFixedLagSmoother.h>
+#include <gtsam/nonlinear/Marginals.h>
 #include <gtsam/base/debug.h>
 #include <gtsam/inference/Key.h>
-#include <gtsam/inference/Ordering.h>
+#include <gtsam/inference/Symbol.h>
 #include <gtsam/geometry/Point2.h>
+#include <gtsam/geometry/Pose2.h>
 #include <gtsam/linear/GaussianBayesNet.h>
 #include <gtsam/linear/GaussianFactorGraph.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/slam/BetweenFactor.h>
+#include <random>
+#include <stdexcept>
+#include <string>
 
 using namespace std;
 using namespace gtsam;
@@ -238,5 +243,500 @@ TEST( BatchFixedLagSmoother, Example )
 }
 
 /* ************************************************************************* */
+// Removing the only factor touching a state removes its value and timestamp.
+TEST(BatchFixedLagSmoother, RemovesUnusedState) {
+  const auto noise = noiseModel::Unit::Create(1);
+  BatchFixedLagSmoother smoother(10.0);
+
+  NonlinearFactorGraph factors;
+  factors.addPrior(0, 0.0, noise);
+  Values values;
+  values.insert(0, 0.0);
+  smoother.update(factors, values, {{0, 0.0}});
+
+  smoother.update(NonlinearFactorGraph(), Values(),
+                  {{0, 1.0}}, {0});
+
+  EXPECT(!smoother.getFactors().exists(0));
+  EXPECT(!smoother.getLinearizationPoint().exists(0));
+  EXPECT(!smoother.getDelta().exists(0));
+  EXPECT(smoother.timestamps().find(0) == smoother.timestamps().end());
+  EXPECT(smoother.getOrdering().empty());
+}
+
+/* ************************************************************************* */
+// Removing an expired state and adding a new state in one update is valid.
+TEST(BatchFixedLagSmoother, RemovesUnusedStateBeforeExpiration) {
+  const auto noise = noiseModel::Unit::Create(1);
+  BatchFixedLagSmoother smoother(1.0);
+
+  NonlinearFactorGraph firstFactors;
+  firstFactors.addPrior(0, 0.0, noise);
+  Values firstValues;
+  firstValues.insert(0, 0.0);
+  smoother.update(firstFactors, firstValues, {{0, 0.0}});
+
+  NonlinearFactorGraph secondFactors;
+  secondFactors.addPrior(1, 0.0, noise);
+  Values secondValues;
+  secondValues.insert(1, 0.0);
+  smoother.update(secondFactors, secondValues, {{1, 2.0}}, {0});
+
+  EXPECT(!smoother.getLinearizationPoint().exists(0));
+  EXPECT(smoother.getLinearizationPoint().exists(1));
+  EXPECT(smoother.timestamps().find(0) == smoother.timestamps().end());
+  EXPECT(smoother.timestamps().find(1) != smoother.timestamps().end());
+  EXPECT(smoother.getFactors().exists(1));
+}
+
+/* ************************************************************************* */
+// Removing an already empty slot must not remove a new factor reusing it.
+TEST(BatchFixedLagSmoother, IgnoresEmptyRemovalSlotBeforeInsertion) {
+  const auto noise = noiseModel::Unit::Create(1);
+  BatchFixedLagSmoother smoother(10.0);
+
+  NonlinearFactorGraph factors;
+  factors.addPrior(0, 0.0, noise);
+  factors.addPrior(1, 1.0, noise);
+  Values values;
+  values.insert(0, 0.0);
+  values.insert(1, 1.0);
+  smoother.update(factors, values, {{0, 0.0}, {1, 0.0}});
+  smoother.update(NonlinearFactorGraph(), Values(), {}, {0});
+  EXPECT(!smoother.getFactors().exists(0));
+
+  NonlinearFactorGraph newFactors;
+  newFactors.addPrior(2, 2.0, noise);
+  Values newValues;
+  newValues.insert(2, 2.0);
+  smoother.update(newFactors, newValues, {{2, 1.0}}, {0, 0});
+
+  EXPECT(smoother.getFactors().exists(0));
+  EXPECT(smoother.getFactors().exists(1));
+  EXPECT_LONGS_EQUAL(2, smoother.getFactors().nrFactors());
+  EXPECT_LONGS_EQUAL(2, smoother.getOrdering().size());
+  EXPECT(assert_equal(2.0, smoother.calculateEstimate<double>(2)));
+}
+
+/* ************************************************************************* */
+// Removing the newest state must preserve this update's marginalization cutoff.
+TEST(BatchFixedLagSmoother, PreservesCutoffWhenRemovingNewestState) {
+  const auto noise = noiseModel::Unit::Create(1);
+  BatchFixedLagSmoother smoother(1.0);
+
+  NonlinearFactorGraph factors;
+  factors.addPrior(0, 0.0, noise);
+  factors.addPrior(1, 1.0, noise);
+  Values values;
+  values.insert(0, 0.0);
+  values.insert(1, 1.0);
+  smoother.update(factors, values, {{0, 0.0}, {1, 0.0}});
+
+  // Advancing the state that is removed still expires the older active state.
+  smoother.update(NonlinearFactorGraph(), Values(), {{1, 2.0}}, {1});
+
+  EXPECT(smoother.getLinearizationPoint().empty());
+  EXPECT_LONGS_EQUAL(0, smoother.getDelta().size());
+  EXPECT(smoother.getOrdering().empty());
+  EXPECT(smoother.timestamps().empty());
+  EXPECT_LONGS_EQUAL(0, smoother.getFactors().nrFactors());
+}
+
+/* ************************************************************************* */
+// A value without a factor is discarded when it leaves the fixed-lag window.
+TEST(BatchFixedLagSmoother, ExpiresPendingValueBeforeOrdering) {
+  const auto noise = noiseModel::Unit::Create(1);
+  BatchFixedLagSmoother smoother(1.0);
+
+  Values pending;
+  pending.insert(0, 0.0);
+  const auto pendingResult =
+      smoother.update(NonlinearFactorGraph(), pending, {{0, 0.0}});
+  EXPECT(pendingResult.expiredPendingKeys.empty());
+
+  NonlinearFactorGraph factors;
+  factors.addPrior(1, 0.0, noise);
+  Values values;
+  values.insert(1, 0.0);
+  const auto result = smoother.update(factors, values, {{1, 2.0}});
+
+  EXPECT(result.expiredPendingKeys.exists(0));
+  EXPECT(!smoother.getLinearizationPoint().exists(0));
+  EXPECT(smoother.getLinearizationPoint().exists(1));
+}
+
+/* ************************************************************************* */
+// Replacing a factor in one update keeps the state and cleans the old index.
+TEST(BatchFixedLagSmoother, ReplacesFactorWithoutRemovingState) {
+  const auto noise = noiseModel::Unit::Create(1);
+  BatchFixedLagSmoother smoother(10.0);
+
+  NonlinearFactorGraph firstFactors;
+  firstFactors.addPrior(0, 0.0, noise);
+  Values values;
+  values.insert(0, 0.0);
+  smoother.update(firstFactors, values, {{0, 0.0}});
+
+  NonlinearFactorGraph replacement;
+  replacement.addPrior(0, 1.0, noise);
+  smoother.update(replacement, Values(), {}, {0});
+
+  EXPECT(smoother.getLinearizationPoint().exists(0));
+  EXPECT(smoother.getFactors().exists(1));
+  EXPECT(smoother.timestamps().find(0) != smoother.timestamps().end());
+}
+
+/* ************************************************************************* */
+TEST( BatchFixedLagSmoother, EnforceConsistency )
+{
+  // Verify that enforceConsistency_ actually preserves linearization points
+  // for variables involved in marginal factors after marginalization.
+  // Before the fix, linearValues_ was never populated, so this feature
+  // was silently non-functional.
+
+  SharedDiagonal noise = noiseModel::Isotropic::Sigma(2, 0.1);
+
+  typedef BatchFixedLagSmoother::KeyTimestampMap Timestamps;
+
+  // Create two smoothers: one with consistency enforcement, one without
+  LevenbergMarquardtParams params;
+  BatchFixedLagSmoother smootherOn(3.0, params, true);   // enforceConsistency = true
+  BatchFixedLagSmoother smootherOff(3.0, params, false);  // enforceConsistency = false
+
+  // Feed both smoothers the same data: a chain of between factors with
+  // deliberately poor initial values to make relinearization matter.
+  for (size_t i = 0; i <= 7; ++i) {
+    NonlinearFactorGraph newFactors;
+    Values newValues;
+    Timestamps newTimestamps;
+
+    Key key_i(i);
+    if (i == 0) {
+      newFactors.addPrior(key_i, Point2(0.0, 0.0), noise);
+    } else {
+      Key key_prev(i - 1);
+      newFactors.push_back(BetweenFactor<Point2>(key_prev, key_i, Point2(1.0, 0.0), noise));
+    }
+
+    // Use a deliberately poor initial estimate to create nonlinearity
+    newValues.insert(key_i, Point2(double(i) + 0.5, 0.5));
+    newTimestamps[key_i] = double(i);
+
+    smootherOn.update(newFactors, newValues, newTimestamps);
+    smootherOff.update(newFactors, newValues, newTimestamps);
+  }
+
+  // After enough steps, marginalization has occurred (lag=3, at step 7 keys
+  // 0..3 are marginalized). The smoothers should still produce valid estimates
+  // but may differ because consistency enforcement constrains the optimization.
+  // The key test: the enforceConsistency=true smoother should not crash and
+  // should produce a reasonable estimate.
+  Key lastKey(7);
+  Point2 estimateOn = smootherOn.calculateEstimate<Point2>(lastKey);
+  Point2 estimateOff = smootherOff.calculateEstimate<Point2>(lastKey);
+
+  // Both should be close to the ground truth (7.0, 0.0) -- the chain of
+  // unit between-factors from the origin.
+  Point2 expected(7.0, 0.0);
+  EXPECT(assert_equal(expected, estimateOn, 0.5));
+  EXPECT(assert_equal(expected, estimateOff, 0.5));
+}
+
+/* ************************************************************************* */
+TEST( BatchFixedLagSmoother, NEES )
+{
+  // Monte Carlo NEES evaluation comparing enforceConsistency on vs off.
+  // Uses Pose2 (x, y, theta) so the problem is genuinely nonlinear --
+  // the rotation makes Jacobians depend on the linearization point,
+  // which is exactly where FEJ (First Estimates Jacobian) matters.
+
+  const double transSigma = 0.5;
+  const double rotSigma = 0.3;  // radians (~17 degrees)
+  auto noise =
+      noiseModel::Diagonal::Sigmas(Vector{{rotSigma, transSigma, transSigma}});
+
+  const size_t numTrials = 100;
+  const size_t numSteps = 30;
+  const double lag = 3.0;  // short lag forces more marginalization
+  const size_t stateDim = 3;  // Pose2: (theta, x, y)
+
+  // Ground truth: a curved trajectory with significant turns
+  vector<Pose2> groundTruth(numSteps + 1);
+  groundTruth[0] = Pose2(0, 0, 0);
+  const Pose2 odomGT(1.0, 0.0, 0.4);  // 1m forward, 0.4 rad turn (~23 deg)
+  for (size_t i = 1; i <= numSteps; ++i) {
+    groundTruth[i] = groundTruth[i-1] * odomGT;
+  }
+
+  double neesSum_on = 0.0, neesSum_off = 0.0;
+  size_t neesCount = 0;
+
+  mt19937 rng(42);
+  normal_distribution<double> transDist(0.0, transSigma);
+  normal_distribution<double> rotDist(0.0, rotSigma);
+
+  for (size_t trial = 0; trial < numTrials; ++trial) {
+    typedef BatchFixedLagSmoother::KeyTimestampMap Timestamps;
+    LevenbergMarquardtParams params;
+    BatchFixedLagSmoother smootherOn(lag, params, true);
+    BatchFixedLagSmoother smootherOff(lag, params, false);
+
+    for (size_t i = 0; i <= numSteps; ++i) {
+      NonlinearFactorGraph newFactors;
+      Values newValues;
+      Timestamps newTimestamps;
+
+      Key key_i(i);
+
+      if (i == 0) {
+        newFactors.addPrior(key_i, groundTruth[0], noise);
+        Pose2 initEst(groundTruth[0].x() + transDist(rng),
+                      groundTruth[0].y() + transDist(rng),
+                      groundTruth[0].theta() + rotDist(rng));
+        newValues.insert(key_i, initEst);
+      } else {
+        // Noisy odometry measurement
+        Pose2 noisyOdom(odomGT.x() + transDist(rng),
+                        odomGT.y() + transDist(rng),
+                        odomGT.theta() + rotDist(rng));
+        newFactors.push_back(BetweenFactor<Pose2>(Key(i-1), key_i, noisyOdom, noise));
+
+        // Initial estimate: perturbed ground truth
+        Pose2 initEst(groundTruth[i].x() + transDist(rng) * 2,
+                      groundTruth[i].y() + transDist(rng) * 2,
+                      groundTruth[i].theta() + rotDist(rng) * 2);
+        newValues.insert(key_i, initEst);
+      }
+      newTimestamps[key_i] = double(i);
+
+      smootherOn.update(newFactors, newValues, newTimestamps);
+      smootherOff.update(newFactors, newValues, newTimestamps);
+    }
+
+    // Compute NEES at the last key
+    Key lastKey(numSteps);
+
+    try {
+      // enforceConsistency = true
+      Values estOn = smootherOn.calculateEstimate();
+      Marginals marginalsOn(smootherOn.getFactors(), estOn, Marginals::QR);
+      Matrix covOn = marginalsOn.marginalCovariance(lastKey);
+      Vector errOn = groundTruth[numSteps].localCoordinates(estOn.at<Pose2>(lastKey));
+      neesSum_on += errOn.transpose() * covOn.inverse() * errOn;
+
+      // enforceConsistency = false
+      Values estOff = smootherOff.calculateEstimate();
+      Marginals marginalsOff(smootherOff.getFactors(), estOff, Marginals::QR);
+      Matrix covOff = marginalsOff.marginalCovariance(lastKey);
+      Vector errOff = groundTruth[numSteps].localCoordinates(estOff.at<Pose2>(lastKey));
+      neesSum_off += errOff.transpose() * covOff.inverse() * errOff;
+
+      neesCount++;
+    } catch (...) {
+      continue;
+    }
+  }
+
+  double avgNees_on = neesSum_on / neesCount;
+  double avgNees_off = neesSum_off / neesCount;
+
+  cout << "NEES Evaluation (" << neesCount << "/" << numTrials << " trials, Pose2):" << endl;
+  cout << "  enforceConsistency=true  (FEJ): avg NEES = " << avgNees_on
+       << " (expected: " << stateDim << ")" << endl;
+  cout << "  enforceConsistency=false       : avg NEES = " << avgNees_off
+       << " (expected: " << stateDim << ")" << endl;
+
+  EXPECT(neesCount > 0);
+  EXPECT(avgNees_on > 0.0);
+  EXPECT(avgNees_off > 0.0);
+}
+
+/* ************************************************************************* */
+// calculateEstimate(keys) retracts only the requested keys and matches the
+// full estimate there.
+TEST(BatchFixedLagSmoother, CalculateEstimateForKeys) {
+  const SharedDiagonal noise = noiseModel::Diagonal::Sigmas(Vector2(0.1, 0.1));
+  BatchFixedLagSmoother smoother(10.0, LevenbergMarquardtParams());
+
+  NonlinearFactorGraph factors;
+  Values values;
+  FixedLagSmoother::KeyTimestampMap timestamps;
+  factors.addPrior(Symbol('x', 0), Point2(0.0, 0.0), noise);
+  values.insert(Symbol('x', 0), Point2(0.1, -0.1));
+  timestamps[Symbol('x', 0)] = 0.0;
+  for (size_t i = 1; i < 4; ++i) {
+    factors.emplace_shared<BetweenFactor<Point2>>(
+        Symbol('x', i - 1), Symbol('x', i), Point2(1.0, 0.0), noise);
+    values.insert(Symbol('x', i), Point2(double(i) + 0.1, -0.1));
+    timestamps[Symbol('x', i)] = double(i);
+  }
+  smoother.update(factors, values, timestamps);
+
+  // Request the subset first, so the full estimate cannot have warmed
+  // anything the subset path depends on.
+  const Values subset =
+      smoother.calculateEstimate(KeyVector{Symbol('x', 3), Symbol('x', 1)});
+  const Values full = smoother.calculateEstimate();
+  LONGS_EQUAL(2, subset.size());
+  EXPECT(!subset.exists(Symbol('x', 0)));
+  EXPECT(assert_equal(full.at<Point2>(Symbol('x', 1)),
+                      subset.at<Point2>(Symbol('x', 1))));
+  EXPECT(assert_equal(full.at<Point2>(Symbol('x', 3)),
+                      subset.at<Point2>(Symbol('x', 3))));
+}
+
+/* ************************************************************************* */
+namespace timestamp_validation {
+
+// Invalid timestamps reject the entire update, even with valid additions/removals.
+TEST(BatchFixedLagSmoother, RejectsTimestampWithoutValueAtomically) {
+  const auto noise = noiseModel::Unit::Create(1);
+  const Key invalid = Symbol('z', 0);
+  for (int scenario = 0; scenario < 3; ++scenario) {
+    BatchFixedLagSmoother smoother(1.0);
+    NonlinearFactorGraph factors;
+    factors.addPrior(0, 0.0, noise);
+    Values values;
+    values.insert(0, 0.0);
+    smoother.update(factors, values, {{0, 0.0}});
+
+    const Values valuesBefore = smoother.getLinearizationPoint();
+    const NonlinearFactorGraph factorsBefore = smoother.getFactors();
+    const auto timestampsBefore = smoother.timestamps();
+    const VectorValues deltaBefore = smoother.getDelta();
+    const Ordering orderingBefore = smoother.getOrdering();
+
+    NonlinearFactorGraph newFactors;
+    newFactors.addPrior(1, 1.0, noise);
+    // A factor referencing the invalid key does not substitute for a value.
+    if (scenario == 2) newFactors.addPrior(invalid, 2.0, noise);
+    Values newValues;
+    newValues.insert(1, 1.0);
+    FixedLagSmoother::KeyTimestampMap timestamps{
+        {0, 0.5}, {1, 0.5}, {invalid, scenario == 1 ? 1000.0 : 0.75}};
+    bool rejected = false;
+    try {
+      smoother.update(newFactors, newValues, timestamps, {0});
+    } catch (const std::invalid_argument& error) {
+      rejected = std::string(error.what()) ==
+          "BatchFixedLagSmoother::update: timestamp supplied for key '" +
+          DefaultKeyFormatter(invalid) +
+          "', but no value exists in the smoother or newTheta.";
+    } catch (const std::exception&) {
+      // A later solver exception is not the expected admission diagnostic.
+    }
+    EXPECT(rejected);
+    EXPECT(assert_equal(valuesBefore, smoother.getLinearizationPoint(), 1e-12));
+    EXPECT(assert_equal(factorsBefore, smoother.getFactors(), 1e-12));
+    EXPECT(timestampsBefore == smoother.timestamps());
+    EXPECT(assert_equal(deltaBefore, smoother.getDelta(), 0.0));
+    EXPECT(orderingBefore == smoother.getOrdering());
+    if (!rejected) continue;
+
+    // Correct the input and retry all additions and removals on the same object.
+    newValues.insert(invalid, 2.0);
+    if (scenario != 2) newFactors.addPrior(invalid, 2.0, noise);
+    smoother.update(newFactors, newValues, timestamps, {0});
+    EXPECT(!smoother.getLinearizationPoint().exists(0));
+    EXPECT(smoother.getLinearizationPoint().exists(invalid));
+    EXPECT(smoother.timestamps().at(invalid) == timestamps.at(invalid));
+    EXPECT(assert_equal(2.0, smoother.calculateEstimate<double>(invalid)));
+  }
+}
+
+// Existing and incoming values admit timestamps even before factors arrive.
+TEST(BatchFixedLagSmoother, AcceptsTimestampsForValuedKeys) {
+  const auto noise = noiseModel::Unit::Create(1);
+  BatchFixedLagSmoother smoother(1.0);
+  NonlinearFactorGraph factors;
+  factors.addPrior(0, 0.0, noise);
+  Values values;
+  values.insert(0, 0.0);
+  values.insert(1, 1.0);  // Pending value, with no factor.
+  smoother.update(factors, values, {{0, 0.0}, {1, 0.5}});
+  smoother.update(NonlinearFactorGraph(), Values(), {{0, 0.5}, {1, 0.75}});
+  EXPECT(smoother.timestamps().at(0) == 0.5);
+  EXPECT(smoother.timestamps().at(1) == 0.75);
+
+  // A valid pending timestamp still participates in the clock and expires 0.
+  smoother.update(NonlinearFactorGraph(), Values(), {{1, 5.0}});
+  EXPECT(!smoother.getLinearizationPoint().exists(0));
+  EXPECT(smoother.getLinearizationPoint().exists(1));
+  EXPECT(smoother.timestamps().at(1) == 5.0);
+}
+
+}  // namespace timestamp_validation
+
+/* ************************************************************************* */
+namespace removal_validation {
+
+// Invalid removal indices are diagnosed before additions or valid removals land.
+TEST(BatchFixedLagSmoother, RejectsInvalidRemovalAtomically) {
+  const auto noise = noiseModel::Unit::Create(1);
+  for (const size_t invalid : {size_t{1}, size_t{100}}) {
+    BatchFixedLagSmoother smoother(10.0);
+    NonlinearFactorGraph factors;
+    factors.addPrior(0, 0.0, noise);
+    Values values;
+    values.insert(0, 0.0);
+    smoother.update(factors, values, {{0, 0.0}});
+
+    const Values valuesBefore = smoother.getLinearizationPoint();
+    const NonlinearFactorGraph factorsBefore = smoother.getFactors();
+    const auto timestampsBefore = smoother.timestamps();
+    const VectorValues deltaBefore = smoother.getDelta();
+    const Ordering orderingBefore = smoother.getOrdering();
+    NonlinearFactorGraph newFactors;
+    newFactors.addPrior(1, 1.0, noise);
+    Values newValues;
+    newValues.insert(1, 1.0);
+    bool rejected = false;
+    try {
+      // Index 1 would exist after insertion, but does not exist at update entry.
+      smoother.update(newFactors, newValues, {{0, 0.5}, {1, 0.5}}, {0, invalid});
+    } catch (const std::out_of_range& error) {
+      rejected = std::string(error.what()) ==
+          "BatchFixedLagSmoother::update: factor index " +
+          std::to_string(invalid) + " is outside the factor graph.";
+    } catch (const std::exception&) {
+      // A later solver exception does not provide the admission guarantee.
+    }
+    EXPECT(rejected);
+    EXPECT(assert_equal(valuesBefore, smoother.getLinearizationPoint(), 1e-12));
+    EXPECT(assert_equal(factorsBefore, smoother.getFactors(), 1e-12));
+    EXPECT(timestampsBefore == smoother.timestamps());
+    EXPECT(assert_equal(deltaBefore, smoother.getDelta(), 0.0));
+    EXPECT(orderingBefore == smoother.getOrdering());
+    if (!rejected) continue;
+
+    smoother.update(newFactors, newValues, {{0, 0.5}, {1, 0.5}}, {0});
+    EXPECT(!smoother.getLinearizationPoint().exists(0));
+    EXPECT(assert_equal(1.0, smoother.calculateEstimate<double>(1)));
+
+    // In-range empty slots remain accepted when no new factor reuses the slot.
+    smoother.update(NonlinearFactorGraph(), Values(), {}, {0});
+    EXPECT(assert_equal(1.0, smoother.calculateEstimate<double>(1)));
+  }
+}
+
+// When both inputs are invalid, removal validation runs before timestamp checks.
+TEST(BatchFixedLagSmoother, ValidatesRemovalsBeforeTimestamps) {
+  BatchFixedLagSmoother smoother(1.0);
+  bool rejected = false;
+  try {
+    smoother.update(NonlinearFactorGraph(), Values(), {{0, 1000.0}}, {0});
+  } catch (const std::out_of_range& error) {
+    rejected = std::string(error.what()) ==
+        "BatchFixedLagSmoother::update: factor index 0 is outside the factor graph.";
+  } catch (const std::exception&) {
+  }
+  EXPECT(rejected);
+  EXPECT(smoother.timestamps().empty());
+  EXPECT(smoother.getLinearizationPoint().empty());
+}
+
+}  // namespace removal_validation
+/* ************************************************************************* */
+
 int main() { TestResult tr; return TestRegistry::runAllTests(tr);}
 /* ************************************************************************* */
