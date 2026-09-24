@@ -17,8 +17,10 @@
 
 #pragma once
 
-#include <gtsam/nonlinear/NonlinearFactor.h>
+#include <gtsam/nonlinear/NoiseModelFactorN.h>
 #include <gtsam/geometry/CalibratedCamera.h>
+
+#include <type_traits>
 
 namespace gtsam {
 
@@ -54,8 +56,6 @@ protected:
   const bool verboseCheirality_; ///< If true, prints text for Cheirality exceptions (default: false)
 
 public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
   /// shorthand for a smart pointer to a factor
   using shared_ptr = std::shared_ptr<This>;
 
@@ -64,7 +64,7 @@ public:
 
   /// Default constructor
   TriangulationFactor() :
-      throwCheirality_(false), verboseCheirality_(false) {
+      throwCheirality_(false), verboseCheirality_(false), measured_() {
   }
 
   /**
@@ -81,7 +81,7 @@ public:
       bool verboseCheirality = false) :
       Base(model, pointKey), camera_(camera), measured_(measured), throwCheirality_(
           throwCheirality), verboseCheirality_(verboseCheirality) {
-    if (model && model->dim() != traits<Measurement>::dimension)
+    if (model && !noiseModel::matchesDimension(*model, measured_))
       throw std::invalid_argument(
           "TriangulationFactor must be created with "
               + std::to_string((int) traits<Measurement>::dimension)
@@ -121,7 +121,20 @@ public:
   /// Evaluate error h(x)-z and optionally derivatives
   Vector evaluateError(const Point3& point, OptionalMatrixType H2) const override {
     try {
-      return traits<Measurement>::Local(measured_, camera_.project2(point, OptionalNone, H2));
+      const Measurement predicted = camera_.project2(point, OptionalNone, H2);
+      if constexpr (internal::HasLocalJacobians<Measurement>::value &&
+                    !std::is_base_of_v<
+                        vector_space_tag,
+                        typename traits<Measurement>::structure_category>) {
+        if (H2) {
+          typename traits<Measurement>::ChartJacobian::Jacobian Hlocal;
+          const Vector error =
+              traits<Measurement>::Local(measured_, predicted, {}, Hlocal);
+          *H2 = Hlocal * *H2;
+          return error;
+        }
+      }
+      return traits<Measurement>::Local(measured_, predicted);
     } catch (CheiralityException& e) {
       if (H2)
         *H2 = Matrix::Zero(traits<Measurement>::dimension, 3);
@@ -160,7 +173,7 @@ public:
 
     // Would be even better if we could pass blocks to project
     const Point3& point = x.at<Point3>(key());
-    b = traits<Measurement>::Local(camera_.project2(point, {}, A), measured_);
+    b = -evaluateError(point, &A);
     if (noiseModel_)
       this->noiseModel_->WhitenSystem(A, b);
 
@@ -201,4 +214,3 @@ private:
 #endif
 };
 } // \ namespace gtsam
-
