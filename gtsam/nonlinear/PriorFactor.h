@@ -21,6 +21,15 @@ namespace gtsam {
 
 /**
  * A class for a soft prior on any Value type.
+ *
+ * The noise model applies to `-Local(value, prior)`. For pose types using
+ * GTSAM's right-hand retraction and exponential-map chart, the covariance is
+ * expressed in the local/body frame of the prior pose. For `Pose3`, the
+ * tangent-space order is rotation followed by translation.
+ *
+ * See `gtsam/nonlinear/doc/PriorFactor.ipynb` for a detailed discussion of
+ * coordinate frames and covariance conventions.
+ *
  * @ingroup nonlinear
  **/
 template <class VALUE>
@@ -49,7 +58,7 @@ class PriorFactor : public ExtendedPriorFactor<VALUE> {
   /// Constructor
   PriorFactor(Key key, const VALUE& prior,
               const SharedNoiseModel& model = nullptr)
-      : Base(key, prior, model) {}
+      : Base(key, prior, noiseModel::validOrDefault(prior, model)) {}
 
   /// Convenience constructor that takes a full covariance argument
   PriorFactor(Key key, const VALUE& prior, const Matrix& covariance)
@@ -111,13 +120,6 @@ class PriorFactor : public ExtendedPriorFactor<VALUE> {
     ar& boost::serialization::make_nvp("prior_", this->origin_);
   }
 #endif
-
-  // Alignment, see
-  // https://eigen.tuxfamily.org/dox/group__TopicStructHavingEigenMembers.html
-  inline constexpr static auto NeedsToAlign = (sizeof(T) % 16) == 0;
-
- public:
-  GTSAM_MAKE_ALIGNED_OPERATOR_NEW_IF(NeedsToAlign)
 };
 
 /// traits
