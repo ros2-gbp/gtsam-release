@@ -10,6 +10,11 @@
 
 #include <gtsam/base/Lie.h>
 
+#include <cmath>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
 namespace gtsam {
 
 /// tag to assert a type is a vector space
@@ -29,7 +34,7 @@ struct VectorSpaceImpl {
   typedef Eigen::Matrix<double, N, 1> TangentVector;
   typedef OptionalJacobian<N, N> ChartJacobian;
   typedef Eigen::Matrix<double, N, N> Jacobian;
-  static int GetDimension(const Class&) { return N;}
+  static size_t GetDimension(const Class&) { return static_cast<size_t>(N);}
 
   static TangentVector Local(const Class& origin, const Class& other,
       ChartJacobian H1 = {}, ChartJacobian H2 = {}) {
@@ -107,10 +112,10 @@ struct VectorSpaceImpl<Class,Eigen::Dynamic> {
   /// @{
   typedef Eigen::VectorXd TangentVector;
   typedef OptionalJacobian<Eigen::Dynamic,Eigen::Dynamic> ChartJacobian;
-  static int GetDimension(const Class& m) { return m.dim();}
+  static size_t GetDimension(const Class& m) { return m.dim();}
 
   static Eigen::MatrixXd Eye(const Class& m) {
-    int dim = GetDimension(m);
+    size_t dim = GetDimension(m);
     return Eigen::MatrixXd::Identity(dim, dim);
   }
 
@@ -141,7 +146,7 @@ struct VectorSpaceImpl<Class,Eigen::Dynamic> {
 
   static Class Expmap(const TangentVector& v, ChartJacobian Hv = {}) {
     Class result(v);
-    if (Hv) *Hv = Eye(v);
+    if (Hv) *Hv = Eye(result);
     return result;
   }
 
@@ -320,6 +325,57 @@ struct traits<Eigen::Matrix<double, M, N, Options, MaxRows, MaxCols> > :
   typedef Eigen::Matrix<double, dimension, dimension> Jacobian;
   typedef OptionalJacobian<dimension, dimension> ChartJacobian;
 
+  /// Dimension of the exact D=1 homogeneous QCQP vector `[1; vec(value)]`.
+  inline constexpr static int QcqpVectorDim = dimension + 1;
+
+  /** Return the exact D=1 homogeneous QCQP representation. */
+  template <int D>
+  static Matrix QcqpValue(const Fixed& value) {
+    if constexpr (D == 1) {
+      Matrix result(QcqpVectorDim, 1);
+      result(0, 0) = 1.0;
+      result.col(0).tail(dimension) =
+          Eigen::Map<const TangentVector>(value.data());
+      return result;
+    } else {
+      throw std::invalid_argument(
+          "fixed-size vector-space QCQP values only support D=1.");
+    }
+  }
+
+  /** Return the homogeneous-coordinate constraint `x(0)^2 = 1`. */
+  template <int D>
+  static std::vector<std::pair<Matrix, double>> QcqpConstraints() {
+    if constexpr (D == 1) {
+      Matrix A = Matrix::Zero(QcqpVectorDim, QcqpVectorDim);
+      A(0, 0) = 1.0;
+      return {{A, 1.0}};
+    } else {
+      throw std::invalid_argument(
+          "fixed-size vector-space QCQP constraints only support D=1.");
+    }
+  }
+
+  /** Recover a fixed-size value from its exact D=1 homogeneous QCQP vector. */
+  template <int D>
+  static Fixed FromQcqpValue(const Matrix& qcqpValue) {
+    if constexpr (D == 1) {
+      if (qcqpValue.rows() != QcqpVectorDim || qcqpValue.cols() != 1 ||
+          std::abs(qcqpValue(0, 0)) < 1e-12) {
+        throw std::invalid_argument(
+            "fixed-size vector-space QCQP recovery requires a compatible "
+            "homogeneous vector.");
+      }
+      Fixed result;
+      Eigen::Map<TangentVector>(result.data()) =
+          qcqpValue.col(0).tail(dimension) / qcqpValue(0, 0);
+      return result;
+    } else {
+      throw std::invalid_argument(
+          "fixed-size vector-space QCQP recovery only supports D=1.");
+    }
+  }
+
   static TangentVector Local(const Fixed& origin, const Fixed& other,
       ChartJacobian H1 = {}, ChartJacobian H2 = {}) {
     if (H1) (*H1) = -Jacobian::Identity();
@@ -395,12 +451,12 @@ struct DynamicTraits {
   typedef OptionalJacobian<dimension, dimension> ChartJacobian;
   typedef Dynamic ManifoldType;
 
-  static int GetDimension(const Dynamic& m) {
-    return m.rows() * m.cols();
+  static size_t GetDimension(const Dynamic& m) {
+    return static_cast<size_t>(m.rows() * m.cols());
   }
 
   static Jacobian Eye(const Dynamic& m) {
-    int dim = GetDimension(m);
+    size_t dim = GetDimension(m);
     return Eigen::Matrix<double, dimension, dimension>::Identity(dim, dim);
   }
 
@@ -432,9 +488,23 @@ struct DynamicTraits {
     return result;
   }
 
-  static Dynamic Expmap(const TangentVector& /*v*/, ChartJacobian H = {}) {
-    static_cast<void>(H);
-    throw std::runtime_error("Expmap not defined for dynamic types");
+  static Dynamic Expmap(const TangentVector& v, ChartJacobian H = {}) {
+    if constexpr (M == Eigen::Dynamic && N == Eigen::Dynamic) {
+      static_cast<void>(v);
+      static_cast<void>(H);
+      throw std::runtime_error("Expmap not defined for fully dynamic matrices");
+    } else {
+      const int rows = (M == Eigen::Dynamic) ? v.size() / N : M;
+      const int cols = (N == Eigen::Dynamic) ? v.size() / M : N;
+      if (rows * cols != v.size()) {
+        throw std::invalid_argument(
+            "Dynamic Expmap tangent dimension does not match matrix shape");
+      }
+      Dynamic result(rows, cols);
+      result = Eigen::Map<const Dynamic>(v.data(), rows, cols);
+      if (H) *H = Jacobian::Identity(v.size(), v.size());
+      return result;
+    }
   }
 
   static Dynamic Inverse(const Dynamic& m, ChartJacobian H = {}) {
