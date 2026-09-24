@@ -78,6 +78,9 @@ namespace gtsam {
     // The member to store the values, see just above
     KeyValueMap values_;
 
+    // Friend access for efficient in-place updates.
+    friend class NonlinearMultifrontalSolver;
+
   public:
 
     /// A shared_ptr to this class
@@ -152,6 +155,13 @@ namespace gtsam {
     template <typename ValueType>
     const ValueType at(Key j) const;
 
+    /** Retrieve a variable by key \c j without copying.
+     * This is a fast path that assumes the stored type matches ValueType;
+     * in debug builds it asserts on mismatch.
+     */
+    template <typename ValueType>
+    const ValueType& atRef(Key j) const;
+
     /// version for double
     double atDouble(size_t key) const { return at<double>(key);}
 
@@ -223,6 +233,18 @@ namespace gtsam {
     Values retract(const VectorValues& delta) const;
 
     /**
+     * Retract only the named keys, returning a Values holding just those.
+     * Complements retract(delta), which retracts every variable.
+     * As in retract(delta), a requested key with no entry in @p delta is
+     * copied unchanged rather than treated as an error.
+     * @param delta The delta vector in the tangent space of this Values.
+     * @param keys The keys to retract; must be unique.
+     * @throws ValuesKeyDoesNotExist if a key is not in this Values.
+     * @throws ValuesKeyAlreadyExists if a key is repeated.
+     */
+    Values retract(const VectorValues& delta, const KeyVector& keys) const;
+
+    /**
      * Retract, but only for Keys appearing in \c mask. In-place.
      * \param mask Mask on Keys where to apply retract.
      */
@@ -272,6 +294,11 @@ namespace gtsam {
 
     /// version for double
     void insertDouble(Key j, double c) { insert<double>(j,c); }
+
+    /// Insert a fixed-size 3-vector without Python overload ambiguity.
+    void insertPoint3(Key j, const Vector3& point3) {
+      insert<Vector3>(j, point3);
+    }
 
     /** single element change of existing element */
     void update(Key j, const Value& val);
@@ -336,6 +363,16 @@ namespace gtsam {
      * Returns a set of keys in the config.
      */
     KeySet keySet() const;
+
+    /**
+     * Returns a new Values holding copies of the values at the given keys,
+     * whatever their types. Complements the typed extract<ValueType>(), which
+     * returns a map of one type; this one keeps the result a Values, so it can
+     * be fed straight back into a factor graph, optimizer, or smoother.
+     * @param keys The keys to copy; must be unique.
+     * @throws ValuesKeyDoesNotExist if a key is not present.
+     */
+    Values extract(const KeyVector& keys) const;
 
     /** Replace all keys and variables */
     Values& operator=(const Values& rhs);
