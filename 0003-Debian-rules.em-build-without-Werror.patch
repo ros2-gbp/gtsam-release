@@ -1,4 +1,4 @@
-From 10422ffb4bc87f43032667493139c96aca52987c Mon Sep 17 00:00:00 2001
+From 747f9660d258c8f312c1c6fe77a384a3ea52126d Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Thu, 24 Sep 2026 18:27:22 +0200
 Subject: [PATCH 3/3] Debian rules.em: build without -Werror
