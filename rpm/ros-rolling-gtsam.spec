@@ -56,6 +56,7 @@ gtsam
     -DCMAKE_INSTALL_PREFIX="%{bloom_prefix}" \
     -DCMAKE_PREFIX_PATH="%{bloom_prefix}" \
     -DSETUPTOOLS_DEB_LAYOUT=OFF \
+    -DGTSAM_USE_SYSTEM_EIGEN=ON \
 %if !0%{?with_tests}
     -DBUILD_TESTING=OFF \
 %endif
