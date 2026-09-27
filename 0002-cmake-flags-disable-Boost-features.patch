@@ -1,0 +1,25 @@
+From c92d8fc5e22ce65b489ded393c15807525e8c38b Mon Sep 17 00:00:00 2001
+From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
+Date: Sun, 27 Sep 2026 10:51:02 +0200
+Subject: [PATCH 2/2] cmake flags: disable Boost features
+
+---
+ rpm/ros-kilted-gtsam.spec | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/rpm/ros-kilted-gtsam.spec b/rpm/ros-kilted-gtsam.spec
+index e69f430..72eb414 100644
+--- a/rpm/ros-kilted-gtsam.spec
++++ b/rpm/ros-kilted-gtsam.spec
+@@ -57,6 +57,8 @@ gtsam
+     -DCMAKE_PREFIX_PATH="%{bloom_prefix}" \
+     -DSETUPTOOLS_DEB_LAYOUT=OFF \
+     -DGTSAM_USE_SYSTEM_EIGEN=ON \
++    -DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF \
++    -DGTSAM_USE_BOOST_FEATURES=OFF \
+ %if !0%{?with_tests}
+     -DBUILD_TESTING=OFF \
+ %endif
+-- 
+2.34.1
+
