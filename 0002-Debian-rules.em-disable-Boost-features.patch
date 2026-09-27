@@ -1,4 +1,4 @@
-From 2636c5b4f438d21b5eb144746f71bfc4716bb28b Mon Sep 17 00:00:00 2001
+From ec21bd367f21583249e1784720478b163f64acf0 Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Sat, 21 Jun 2025 00:19:50 +0200
 Subject: [PATCH 2/2] Debian rules.em: disable Boost features
@@ -22,5 +22,5 @@ index a7c2535..c865990 100755
  
  override_dh_auto_build:
 -- 
-2.43.0
+2.34.1
 
