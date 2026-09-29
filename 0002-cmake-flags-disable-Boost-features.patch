@@ -1,0 +1,25 @@
+From 70404d419916f5552668c14457f0d83fc4b1fde1 Mon Sep 17 00:00:00 2001
+From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
+Date: Tue, 29 Sep 2026 11:00:51 +0200
+Subject: [PATCH 2/3] cmake flags: disable Boost features
+
+---
+ rpm/template.spec.em | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/rpm/template.spec.em b/rpm/template.spec.em
+index 8fd20c8..9a1f344 100644
+--- a/rpm/template.spec.em
++++ b/rpm/template.spec.em
+@@ -49,6 +49,8 @@ mkdir -p .obj-%{_target_platform} && cd .obj-%{_target_platform}
+     -DCMAKE_PREFIX_PATH="@(InstallationPrefix)" \
+     -DSETUPTOOLS_DEB_LAYOUT=OFF \
+     -DGTSAM_USE_SYSTEM_EIGEN=ON \
++    -DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF \
++    -DGTSAM_USE_BOOST_FEATURES=OFF \
+ %if !0%{?with_tests}
+     -DBUILD_TESTING=OFF \
+ %endif
+-- 
+2.34.1
+
