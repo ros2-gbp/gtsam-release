@@ -1,4 +1,4 @@
-From 747f9660d258c8f312c1c6fe77a384a3ea52126d Mon Sep 17 00:00:00 2001
+From d7ec6f23a11ecdc1e6ef20c6ebe010d5a9f371d3 Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Thu, 24 Sep 2026 18:27:22 +0200
 Subject: [PATCH 3/3] Debian rules.em: build without -Werror
@@ -21,5 +21,5 @@ index c865990..e901d8f 100755
  
  override_dh_auto_build:
 -- 
-2.34.1
+2.43.0
 
