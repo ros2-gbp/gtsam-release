@@ -1,14 +1,14 @@
-From 9307b469c1e8e880047721fbff7770770636d129 Mon Sep 17 00:00:00 2001
+From ae6464ce3a1258352639fc29e249eaabdde63341 Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Sun, 27 Sep 2026 10:51:08 +0200
-Subject: [PATCH 2/2] cmake flags: disable Boost features
+Subject: [PATCH 2/3] cmake flags: disable Boost features
 
 ---
  rpm/ros-rolling-gtsam.spec | 2 ++
  1 file changed, 2 insertions(+)
 
 diff --git a/rpm/ros-rolling-gtsam.spec b/rpm/ros-rolling-gtsam.spec
-index f87aad1..90a6ac7 100644
+index 7914499..3c9ea7d 100644
 --- a/rpm/ros-rolling-gtsam.spec
 +++ b/rpm/ros-rolling-gtsam.spec
 @@ -57,6 +57,8 @@ gtsam
