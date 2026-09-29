@@ -1,8 +1,9 @@
 From ab62d57c58eb72c227fa06a9a935472f24d40859 Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Sun, 27 Sep 2026 10:51:02 +0200
-Subject: [PATCH 2/3] cmake flags: disable Boost features
+Subject: [PATCH 2/2] cmake flags: disable Boost features
 
+Signed-off-by: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 ---
  rpm/ros-kilted-gtsam.spec | 2 ++
  1 file changed, 2 insertions(+)
@@ -21,5 +22,5 @@ index 0e50821..9533a46 100644
      -DBUILD_TESTING=OFF \
  %endif
 -- 
-2.34.1
+2.43.0
 
